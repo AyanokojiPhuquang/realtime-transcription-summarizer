@@ -8,12 +8,14 @@ let fullTranscript = "";
 let isCapturing = false;
 let recordingInterval = null;
 let audioStream = null;
-let sentenceBuffer = ""; // Buffer to accumulate text until a sentence-ending punctuation is found
+let sentenceBuffer = "";
 
 // --- DOM Elements ---
 const startBtn = document.getElementById("startBtn");
 const stopBtn = document.getElementById("stopBtn");
 const videoPreview = document.getElementById("videoPreview");
+const videoContainer = document.getElementById("videoContainer");
+const micPlaceholder = document.getElementById("micPlaceholder");
 const transcriptionArea = document.getElementById("transcriptionArea");
 const summaryArea = document.getElementById("summaryArea");
 const errorArea = document.getElementById("errorArea");
@@ -24,7 +26,10 @@ startBtn.addEventListener("click", async () => {
     await startCapture();
   } catch (err) {
     if (err.name === "NotAllowedError") {
-      displayError("Screen share permission was denied");
+      const source = getSelectedSource();
+      displayError(source === "microphone"
+        ? "Microphone permission was denied"
+        : "Screen share permission was denied");
     } else {
       displayError("Failed to start capture: " + err.message);
     }
@@ -36,6 +41,12 @@ stopBtn.addEventListener("click", () => {
   stopCapture();
 });
 
+// --- Helper ---
+
+function getSelectedSource() {
+  return document.querySelector('input[name="audioSource"]:checked').value;
+}
+
 // --- Core Capture Logic ---
 
 async function startCapture() {
@@ -45,32 +56,40 @@ async function startCapture() {
   transcriptionArea.textContent = "";
   summaryArea.textContent = "Summary will appear here after stopping capture.";
 
-  mediaStream = await navigator.mediaDevices.getDisplayMedia({
-    video: true,
-    audio: true,
-  });
+  const source = getSelectedSource();
 
-  videoPreview.srcObject = mediaStream;
-
-  const videoTrack = mediaStream.getVideoTracks()[0];
-  if (videoTrack) {
-    videoTrack.addEventListener("ended", onStreamEnded);
+  if (source === "microphone") {
+    mediaStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+    videoContainer.classList.add("hidden");
+    micPlaceholder.classList.remove("hidden");
+    micPlaceholder.classList.add("flex");
+    videoPreview.srcObject = null;
+  } else {
+    mediaStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+    videoContainer.classList.remove("hidden");
+    micPlaceholder.classList.add("hidden");
+    micPlaceholder.classList.remove("flex");
+    videoPreview.srcObject = mediaStream;
+    const videoTrack = mediaStream.getVideoTracks()[0];
+    if (videoTrack) {
+      videoTrack.addEventListener("ended", onStreamEnded);
+    }
   }
 
   const audioTrack = mediaStream.getAudioTracks()[0];
   if (!audioTrack) {
-    throw new Error("No audio track available. Please share a tab with audio.");
+    throw new Error("No audio track available.");
   }
 
   audioStream = new MediaStream([audioTrack]);
 
-  // Open WebSocket
   const wsProtocol = location.protocol === "https:" ? "wss:" : "ws:";
   websocket = new WebSocket(`${wsProtocol}//${location.host}/ws/audio`);
 
   isCapturing = true;
   startBtn.disabled = true;
   stopBtn.disabled = false;
+  document.querySelectorAll('input[name="audioSource"]').forEach(r => r.disabled = true);
 
   websocket.onmessage = onWebSocketMessage;
 
@@ -93,18 +112,15 @@ async function startCapture() {
   };
 }
 
-/**
- * Instead of using timeslice (which produces non-standalone chunks),
- * we stop and restart the MediaRecorder every 4 seconds.
- * Each stop produces a complete, valid WebM file that Whisper can process.
- */
 function startRecordingCycle() {
   startNewRecorder();
+  // Mic uses 5s chunks for better Whisper accuracy, browser tab uses 2s
+  const interval = getSelectedSource() === "microphone" ? 5000 : 2000;
   recordingInterval = setInterval(() => {
     if (mediaRecorder && mediaRecorder.state === "recording") {
-      mediaRecorder.stop(); // triggers ondataavailable with a complete WebM blob, then onstop starts a new one
+      mediaRecorder.stop();
     }
-  }, 2000);
+  }, interval);
 }
 
 function startNewRecorder() {
@@ -115,7 +131,6 @@ function startNewRecorder() {
     : "audio/webm";
 
   mediaRecorder = new MediaRecorder(audioStream, { mimeType });
-
   const chunks = [];
 
   mediaRecorder.ondataavailable = (event) => {
@@ -127,12 +142,10 @@ function startNewRecorder() {
   mediaRecorder.onstop = () => {
     if (chunks.length > 0) {
       const blob = new Blob(chunks, { type: mimeType });
-      // Only send if blob is large enough to contain actual audio (skip tiny header-only blobs)
       if (blob.size > 1000 && websocket && websocket.readyState === WebSocket.OPEN) {
         websocket.send(blob);
       }
     }
-    // Start a new recording cycle if still capturing
     if (isCapturing) {
       startNewRecorder();
     }
@@ -164,8 +177,10 @@ function stopCapture() {
     mediaStream = null;
   }
   audioStream = null;
-
   videoPreview.srcObject = null;
+  videoContainer.classList.remove("hidden");
+  micPlaceholder.classList.add("hidden");
+  micPlaceholder.classList.remove("flex");
 
   if (websocket && websocket.readyState === WebSocket.OPEN) {
     websocket.close();
@@ -175,8 +190,8 @@ function stopCapture() {
 
   startBtn.disabled = false;
   stopBtn.disabled = true;
+  document.querySelectorAll('input[name="audioSource"]').forEach(r => r.disabled = false);
 
-  // Flush any remaining text in the sentence buffer
   if (sentenceBuffer.trim()) {
     transcriptionArea.textContent = sentenceBuffer.trim();
     sentenceBuffer = "";
@@ -200,19 +215,15 @@ function onWebSocketMessage(event) {
       fullTranscript += msg.text + " ";
       sentenceBuffer += msg.text + " ";
 
-      // Split on sentence-ending punctuation: . ! ? … and their combinations
       const sentences = sentenceBuffer.split(/(?<=[.!?…。]+)\s+/);
 
       if (sentences.length > 1) {
-        // We have at least one complete sentence — display the last complete one
         const completeSentences = sentences.slice(0, -1);
         for (const sentence of completeSentences) {
           transcriptionArea.textContent = sentence.trim();
         }
-        // Keep the remaining incomplete part in the buffer
         sentenceBuffer = sentences[sentences.length - 1];
       } else {
-        // No complete sentence yet — show what we have so far
         transcriptionArea.textContent = sentenceBuffer.trim();
       }
     } else if (msg.type === "error" && msg.message) {
@@ -278,6 +289,9 @@ function resetUI() {
   }
   audioStream = null;
   videoPreview.srcObject = null;
+  videoContainer.classList.remove("hidden");
+  micPlaceholder.classList.add("hidden");
+  micPlaceholder.classList.remove("flex");
 
   if (websocket) {
     try { websocket.close(); } catch {}

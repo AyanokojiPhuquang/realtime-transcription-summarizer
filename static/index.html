@@ -16,6 +16,21 @@
         <!-- Error Area -->
         <div id="errorArea" class="hidden bg-red-900/50 border border-red-700 text-red-200 px-4 py-3 rounded-lg text-sm" role="alert"></div>
 
+        <!-- Audio Source Selector -->
+        <div class="flex items-center gap-4">
+            <span class="text-sm font-medium text-gray-400">Audio Source:</span>
+            <label class="flex items-center gap-2 cursor-pointer">
+                <input type="radio" name="audioSource" value="browser" checked
+                    class="accent-emerald-500">
+                <span class="text-sm text-gray-200">Browser Tab / System Audio</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+                <input type="radio" name="audioSource" value="microphone"
+                    class="accent-emerald-500">
+                <span class="text-sm text-gray-200">Microphone</span>
+            </label>
+        </div>
+
         <!-- Controls -->
         <div class="flex gap-3">
             <button id="startBtn"
@@ -28,12 +43,23 @@
             </button>
         </div>
 
-        <!-- Video Preview -->
-        <div>
+        <!-- Video Preview / Mic Placeholder -->
+        <div id="previewSection">
             <h2 class="text-sm font-medium text-gray-400 mb-2">Screen Preview</h2>
-            <div class="w-full aspect-video bg-black rounded-lg border border-gray-700 overflow-hidden">
+            <div id="videoContainer" class="w-full aspect-video bg-black rounded-lg border border-gray-700 overflow-hidden">
                 <video id="videoPreview" muted autoplay playsinline
                     class="w-full h-full object-contain"></video>
+            </div>
+            <div id="micPlaceholder" class="hidden w-full aspect-video bg-gray-800 rounded-lg border border-gray-700 flex items-center justify-center">
+                <div class="text-center text-gray-400">
+                    <svg class="w-16 h-16 mx-auto mb-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 10v2a7 7 0 01-14 0v-2"/>
+                        <line x1="12" y1="19" x2="12" y2="23" stroke-width="1.5" stroke-linecap="round"/>
+                        <line x1="8" y1="23" x2="16" y2="23" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                    <p class="text-sm font-medium">Microphone Active</p>
+                </div>
             </div>
         </div>
 
@@ -49,7 +75,7 @@
         <div>
             <h2 class="text-sm font-medium text-gray-400 mb-2">Summary</h2>
             <div id="summaryArea"
-                class="min-h-[100px] w-full bg-gray-800 border border-gray-700 rounded-lg p-4 text-sm text-gray-200 whitespace-pre-wrap"
+                class="min-h-[300px] w-full bg-gray-800 border border-gray-700 rounded-lg p-4 text-sm text-gray-200 whitespace-pre-wrap overflow-y-auto"
             >Summary will appear here after stopping capture.</div>
         </div>
     </main>

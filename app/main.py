@@ -17,6 +17,9 @@ from app.transcription import transcribe_audio_chunk
 
 logger = logging.getLogger(__name__)
 
+# Configure logging to show INFO level
+logging.basicConfig(level=logging.INFO)
+
 # Load environment variables from .env file
 load_dotenv()
 
@@ -64,7 +67,12 @@ async def websocket_audio(websocket: WebSocket):
         """Transcribe a chunk and send the result back, preserving order."""
         nonlocal transcription_buffer
         try:
+            logger.info("Processing chunk #%d, size=%d bytes", seq, len(data))
             text = await asyncio.to_thread(transcribe_audio_chunk, openai_client, data)
+            if not text.strip():
+                logger.info("Chunk #%d: empty text, skipping", seq)
+                return  # Skip empty/hallucinated results
+            logger.info("Chunk #%d: sending text=%r", seq, text[:100])
             transcription_buffer += text
             msg = TranscriptionMessage(text=text)
             async with send_lock:
