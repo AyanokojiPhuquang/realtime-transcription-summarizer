@@ -12,7 +12,6 @@ RUN uv pip install --system --no-cache -r pyproject.toml
 
 COPY app/ app/
 COPY static/ static/
-COPY .env.template .
 
 EXPOSE 8000
 
