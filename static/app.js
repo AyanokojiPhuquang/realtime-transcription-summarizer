@@ -16,6 +16,7 @@ const stopBtn = document.getElementById("stopBtn");
 const videoPreview = document.getElementById("videoPreview");
 const videoContainer = document.getElementById("videoContainer");
 const micPlaceholder = document.getElementById("micPlaceholder");
+const previewSection = document.getElementById("previewSection");
 const transcriptionArea = document.getElementById("transcriptionArea");
 const summaryArea = document.getElementById("summaryArea");
 const errorArea = document.getElementById("errorArea");
@@ -41,6 +42,17 @@ stopBtn.addEventListener("click", () => {
   stopCapture();
 });
 
+// Hide/show preview section when switching audio source
+document.querySelectorAll('input[name="audioSource"]').forEach(radio => {
+  radio.addEventListener("change", () => {
+    if (getSelectedSource() === "microphone") {
+      previewSection.classList.add("hidden");
+    } else {
+      previewSection.classList.remove("hidden");
+    }
+  });
+});
+
 // --- Helper ---
 
 function getSelectedSource() {
@@ -60,12 +72,11 @@ async function startCapture() {
 
   if (source === "microphone") {
     mediaStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
-    videoContainer.classList.add("hidden");
-    micPlaceholder.classList.remove("hidden");
-    micPlaceholder.classList.add("flex");
+    previewSection.classList.add("hidden");
     videoPreview.srcObject = null;
   } else {
     mediaStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+    previewSection.classList.remove("hidden");
     videoContainer.classList.remove("hidden");
     micPlaceholder.classList.add("hidden");
     micPlaceholder.classList.remove("flex");
@@ -178,6 +189,7 @@ function stopCapture() {
   }
   audioStream = null;
   videoPreview.srcObject = null;
+  previewSection.classList.remove("hidden");
   videoContainer.classList.remove("hidden");
   micPlaceholder.classList.add("hidden");
   micPlaceholder.classList.remove("flex");
@@ -289,6 +301,7 @@ function resetUI() {
   }
   audioStream = null;
   videoPreview.srcObject = null;
+  previewSection.classList.remove("hidden");
   videoContainer.classList.remove("hidden");
   micPlaceholder.classList.add("hidden");
   micPlaceholder.classList.remove("flex");
